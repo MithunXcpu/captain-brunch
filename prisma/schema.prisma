@@ -1,0 +1,102 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                   String              @id @default(cuid())
+  clerkId              String              @unique
+  email                String?
+  phone                String?
+  name                 String?
+  stripeCustomerId     String?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  createdSplits        Split[]             @relation("SplitCreator")
+  participations       SplitParticipant[]
+  paymentMethods       PaymentMethod[]
+}
+
+model Split {
+  id              String              @id @default(cuid())
+  creatorId       String
+  creator         User                @relation("SplitCreator", fields: [creatorId], references: [id])
+  billAmount      Decimal             @db.Decimal(10, 2)
+  tipPercentage   Int                 @default(20)
+  totalAmount     Decimal             @db.Decimal(10, 2)
+  shareCode       String              @unique @default(cuid())
+  status          SplitStatus         @default(PENDING)
+  restaurantName  String?
+  virtualCardId   String?
+  virtualCardLast4 String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  participants    SplitParticipant[]
+
+  @@index([shareCode])
+  @@index([creatorId])
+}
+
+model SplitParticipant {
+  id              String              @id @default(cuid())
+  splitId         String
+  split           Split               @relation(fields: [splitId], references: [id], onDelete: Cascade)
+  userId          String?
+  user            User?               @relation(fields: [userId], references: [id])
+  phone           String?
+  name            String
+  amount          Decimal             @db.Decimal(10, 2)
+  paymentIntentId String?
+  status          ParticipantStatus   @default(PENDING)
+  invitedAt       DateTime            @default(now())
+  paidAt          DateTime?
+
+  @@unique([splitId, phone])
+  @@index([splitId])
+  @@index([userId])
+}
+
+model PaymentMethod {
+  id                    String    @id @default(cuid())
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  stripePaymentMethodId String    @unique
+  cardLast4             String
+  cardBrand             String
+  isDefault             Boolean   @default(false)
+  createdAt             DateTime  @default(now())
+
+  @@index([userId])
+}
+
+model SmsLog {
+  id          String    @id @default(cuid())
+  phone       String
+  message     String
+  twilioSid   String?
+  status      String    @default("pending")
+  splitId     String?
+  createdAt   DateTime  @default(now())
+
+  @@index([splitId])
+}
+
+enum SplitStatus {
+  PENDING
+  COLLECTING
+  COMPLETED
+  CANCELLED
+}
+
+enum ParticipantStatus {
+  PENDING
+  INVITED
+  JOINED
+  PAID
+  FAILED
+}
